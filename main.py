@@ -1,104 +1,66 @@
 import streamlit as st
 import random
-import time
 
-# --- 게임 초기화 ---
+# 세션 상태(Session State) 초기화
 if "game_state" not in st.session_state:
     st.session_state.game_state = "playing"
-    st.session_state.player_pos = [8, 5]  # [y, x]
-    st.session_state.enemies = [[1, random.randint(0, 9)], [2, random.randint(0, 9)]]
-    st.session_state.missiles = []
-    st.session_state.score = 0
-    st.session_state.game_board = [["" for _ in range(10)] for _ in range(10)]
+    st.session_state.money = 0
+    st.session_state.materials = 0
+    st.session_state.factories = 0
+    st.session_state.goal = 1000
 
-def draw_board():
-    board_str = ""
-    for r, row in enumerate(st.session_state.game_board):
-        for c, cell in enumerate(row):
-            if cell == "":
-                board_str += "⬜"
-            else:
-                board_str += cell
-        board_str += "\n"
-    st.text(board_str)
-
-def update_game_state():
-    # 게임 보드 초기화
-    st.session_state.game_board = [["" for _ in range(10)] for _ in range(10)]
-    
-    # 미사일 이동 및 충돌 체크
-    new_missiles = []
-    for m_pos in st.session_state.missiles:
-        m_pos[0] -= 1  # 위로 이동
-        if m_pos[0] >= 0:
-            new_missiles.append(m_pos)
-            
-            # 적기 충돌 체크
-            hit = False
-            for e_pos in st.session_state.enemies:
-                if m_pos == e_pos:
-                    st.session_state.enemies.remove(e_pos)
-                    st.session_state.score += 10
-                    hit = True
-                    break
-            if not hit:
-                st.session_state.game_board[m_pos[0]][m_pos[1]] = "🚀"
-    st.session_state.missiles = new_missiles
-    
-    # 적기 이동 및 충돌 체크
-    for e_pos in st.session_state.enemies:
-        e_pos[0] += 1  # 아래로 이동
-        if st.session_state.player_pos == e_pos:
-            st.session_state.game_state = "game over"
-            return
-        if e_pos[0] > 9:
-            st.session_state.enemies.remove(e_pos)
-            
-    # 일정 턴마다 새로운 적기 생성
-    if random.random() < 0.2 + (st.session_state.score / 200):  # 점수에 따라 확률 증가
-        st.session_state.enemies.append([0, random.randint(0, 9)])
-        
-    # 게임 보드에 적기 그리기
-    for e_pos in st.session_state.enemies:
-        if 0 <= e_pos[0] < 10 and 0 <= e_pos[1] < 10:
-            st.session_state.game_board[e_pos[0]][e_pos[1]] = "🚁"
-
-    # 게임 보드에 플레이어 그리기
-    if 0 <= st.session_state.player_pos[0] < 10 and 0 <= st.session_state.player_pos[1] < 10:
-        st.session_state.game_board[st.session_state.player_pos[0]][st.session_state.player_pos[1]] = "✈️"
-    else:
-        st.session_state.game_state = "game over"
-
-# --- UI 및 게임 로직 ---
-st.title("2D 비행기 격추 게임")
+st.title("타이쿤 게임: 공장을 건설하고 돈을 벌어보세요!")
 st.markdown("---")
 
-if st.session_state.game_state == "playing":
-    st.sidebar.subheader("조작")
-    
-    col1, col2, col3 = st.sidebar.columns(3)
-    with col1:
-        if st.button("⬅️"):
-            st.session_state.player_pos[1] -= 1
-    with col2:
-        if st.button("⬆️"):
-            st.session_state.player_pos[0] -= 1
-    with col3:
-        if st.button("➡️"):
-            st.session_state.player_pos[1] += 1
-            
-    if st.sidebar.button("미사일 발사"):
-        st.session_state.missiles.append([st.session_state.player_pos[0] - 1, st.session_state.player_pos[1]])
-        
-    update_game_state()
-    draw_board()
-    st.subheader(f"점수: {st.session_state.score}점")
-
-elif st.session_state.game_state == "game over":
-    st.error("게임 오버! 💥")
-    st.subheader(f"최종 점수: {st.session_state.score}점")
-    if st.button("다시 시작"):
-        # 초기화
+# 게임 오버/승리 상태 체크
+if st.session_state.game_state == "win":
+    st.balloons()
+    st.success(f"축하합니다! 목표 금액 ${st.session_state.goal}을 달성했습니다!")
+    st.write("게임을 다시 시작하려면 아래 버튼을 눌러주세요.")
+    if st.button("다시 시작하기"):
         for key in st.session_state.keys():
             del st.session_state[key]
+        st.experimental_rerun()
+elif st.session_state.game_state == "playing":
+    # 현재 상태 표시
+    st.subheader(f"현재 자산: ${st.session_state.money}")
+    st.write(f"보유 재료: {st.session_state.materials}개")
+    st.write(f"공장 수: {st.session_state.factories}개")
+    st.write(f"목표 금액: ${st.session_state.goal}")
+    st.markdown("---")
+
+    # 버튼 레이아웃
+    col1, col2, col3 = st.columns(3)
+
+    # 재료 수집 버튼
+    with col1:
+        if st.button("재료 수집"):
+            acquired_materials = random.randint(3, 8)
+            st.session_state.materials += acquired_materials
+            st.success(f"재료 {acquired_materials}개를 획득했습니다!")
+    
+    # 공장 건설 버튼
+    with col2:
+        if st.button("공장 건설 (재료 10개 소모)"):
+            if st.session_state.materials >= 10:
+                st.session_state.materials -= 10
+                st.session_state.factories += 1
+                st.info("공장을 건설했습니다!")
+            else:
+                st.warning("재료가 부족합니다. 재료를 더 모아주세요.")
+
+    # 생산 및 판매 버튼
+    with col3:
+        if st.button("생산 및 판매"):
+            if st.session_state.factories > 0:
+                # 공장 1개당 10~20원 수익
+                profit = st.session_state.factories * random.randint(10, 20)
+                st.session_state.money += profit
+                st.success(f"생산 및 판매를 완료하여 ${profit}을 벌었습니다!")
+            else:
+                st.warning("공장이 없습니다. 먼저 공장을 건설하세요.")
+
+    # 승리 조건 체크
+    if st.session_state.money >= st.session_state.goal:
+        st.session_state.game_state = "win"
         st.experimental_rerun()
